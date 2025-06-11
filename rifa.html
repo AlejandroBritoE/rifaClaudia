@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rifa - Me rifan por $3.000 pesos</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #FFA07A; /* Color salmon */
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            text-align: center;
+            color: #FF6347; /* Salmon más oscuro */
+            margin-bottom: 30px;
+        }
+        
+        .numbers-grid {
+            display: grid;
+            grid-template-columns: repeat(10, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .number {
+            padding: 10px;
+            text-align: center;
+            background-color: #FFA07A;
+            color: white;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .number:hover {
+            background-color: #FF6347;
+        }
+        
+        .number.selected {
+            background-color: #4CAF50;
+        }
+        
+        .number.blocked {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        
+        button {
+            padding: 10px 15px;
+            background-color: #FF6347;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        
+        button:hover {
+            background-color: #FF4500;
+        }
+        
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        
+        .share-section {
+            text-align: center;
+            margin-top: 20px;
+        }
+        
+        .admin-section {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px dashed #FFA07A;
+        }
+        
+        .admin-controls {
+            display: none;
+        }
+        
+        input, textarea {
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #FFA07A;
+            border-radius: 5px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        
+        .buyer-info {
+            margin-bottom: 15px;
+        }
+        
+        .export-section {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+        }
+        
+        textarea {
+            height: 100px;
+            resize: vertical;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ME RIFAN POR $3.000 PESOS</h1>
+        
+        <div class="controls">
+            <div class="buyer-info">
+                <input type="text" id="nameInput" placeholder="Tu nombre completo" required>
+                <input type="text" id="contactInput" placeholder="Teléfono o contacto">
+            </div>
+            <div>
+                <button id="selectBtn">Reservar números</button>
+            </div>
+        </div>
+        
+        <div class="numbers-grid" id="numbersGrid"></div>
+        
+        <div class="selected-numbers" id="selectedNumbers">
+            <h3>Tus números seleccionados:</h3>
+            <div id="numbersList">No has seleccionado números aún</div>
+        </div>
+        
+        <div class="share-section">
+            <button id="shareBtn">Compartir rifa por WhatsApp</button>
+        </div>
+        
+        <div class="admin-section">
+            <h3>Área de administrador</h3>
+            <button id="adminToggle">Mostrar controles</button>
+            <div class="admin-controls" id="adminControls">
+                <input type="password" id="adminPass" placeholder="Contraseña">
+                <button id="adminLogin">Ingresar</button>
+                <div id="adminActions" style="display: none; margin-top: 10px;">
+                    <button id="unblockBtn">Desbloquear número</button>
+                    <input type="number" id="unblockInput" placeholder="Número a desbloquear" min="1" max="200">
+                    <button id="resetBtn">Reiniciar rifa</button>
+                    
+                    <div class="export-section">
+                        <h4>Exportar datos a Excel</h4>
+                        <button id="exportBtn">Generar datos para Excel</button>
+                        <textarea id="exportData" readonly placeholder="Aquí aparecerán los datos en formato CSV (para Excel)"></textarea>
+                        <button id="copyBtn">Copiar datos</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const numbersGrid = document.getElementById('numbersGrid');
+            const selectBtn = document.getElementById('selectBtn');
+            const numbersList = document.getElementById('numbersList');
+            const shareBtn = document.getElementById('shareBtn');
+            const nameInput = document.getElementById('nameInput');
+            const contactInput = document.getElementById('contactInput');
+            const adminToggle = document.getElementById('adminToggle');
+            const adminControls = document.getElementById('adminControls');
+            const adminLogin = document.getElementById('adminLogin');
+            const adminPass = document.getElementById('adminPass');
+            const adminActions = document.getElementById('adminActions');
+            const unblockBtn = document.getElementById('unblockBtn');
+            const unblockInput = document.getElementById('unblockInput');
+            const resetBtn = document.getElementById('resetBtn');
+            const exportBtn = document.getElementById('exportBtn');
+            const exportData = document.getElementById('exportData');
+            const copyBtn = document.getElementById('copyBtn');
+            
+            const totalNumbers = 200;
+            const pricePerNumber = 3000;
+            const adminPassword = "admin123"; // Cambia esto por una contraseña segura
+            let selectedNumbers = [];
+            let blockedNumbers = JSON.parse(localStorage.getItem('blockedNumbers')) || [];
+            
+            // Crear los números de la rifa
+            function createNumbers() {
+                numbersGrid.innerHTML = '';
+                for (let i = 1; i <= totalNumbers; i++) {
+                    const numberElement = document.createElement('div');
+                    numberElement.className = 'number';
+                    if (blockedNumbers.includes(i)) {
+                        numberElement.classList.add('blocked');
+                    }
+                    numberElement.textContent = i;
+                    numberElement.dataset.number = i;
+                    
+                    numberElement.addEventListener('click', function() {
+                        if (this.classList.contains('blocked')) return;
+                        
+                        const num = parseInt(this.dataset.number);
+                        const index = selectedNumbers.indexOf(num);
+                        
+                        if (index === -1) {
+                            selectedNumbers.push(num);
+                            this.classList.add('selected');
+                        } else {
+                            selectedNumbers.splice(index, 1);
+                            this.classList.remove('selected');
+                        }
+                        
+                        updateSelectedList();
+                    });
+                    
+                    numbersGrid.appendChild(numberElement);
+                }
+            }
+            
+            // Actualizar la lista de números seleccionados
+            function updateSelectedList() {
+                numbersList.innerHTML = '';
+                if (selectedNumbers.length === 0) {
+                    numbersList.innerHTML = '<p>No has seleccionado números aún</p>';
+                    return;
+                }
+                
+                selectedNumbers.sort((a, b) => a - b);
+                const total = selectedNumbers.length * pricePerNumber;
+                numbersList.innerHTML = `
+                    <p><strong>Números:</strong> ${selectedNumbers.join(', ')}</p>
+                    <p><strong>Cantidad:</strong> ${selectedNumbers.length} números</p>
+                    <p><strong>Total a pagar:</strong> $${total.toLocaleString()} pesos</p>
+                `;
+            }
+            
+            // Bloquear números seleccionados
+            function blockSelectedNumbers() {
+                const name = nameInput.value.trim();
+                if (!name) {
+                    alert('Por favor ingresa tu nombre');
+                    return;
+                }
+                
+                if (selectedNumbers.length === 0) {
+                    alert('Por favor selecciona al menos un número');
+                    return;
+                }
+                
+                // Guardar en localStorage
+                blockedNumbers = blockedNumbers.concat(selectedNumbers);
+                localStorage.setItem('blockedNumbers', JSON.stringify(blockedNumbers));
+                
+                // Actualizar visualización
+                selectedNumbers.forEach(num => {
+                    const element = document.querySelector(`.number[data-number="${num}"]`);
+                    if (element) {
+                        element.classList.add('blocked');
+                        element.classList.remove('selected');
+                    }
+                });
+                
+                // Guardar información del comprador
+                const buyers = JSON.parse(localStorage.getItem('buyers')) || {};
+                const contact = contactInput.value.trim() || 'No especificado';
+                const purchaseDate = new Date().toLocaleString();
+                
+                selectedNumbers.forEach(num => {
+                    buyers[num] = {
+                        name: name,
+                        contact: contact,
+                        date: purchaseDate,
+                        number: num,
+                        price: pricePerNumber
+                    };
+                });
+                localStorage.setItem('buyers', JSON.stringify(buyers));
+                
+                const total = selectedNumbers.length * pricePerNumber;
+                alert(`¡Gracias ${name}!\nHas reservado los números: ${selectedNumbers.join(', ')}\nTotal a pagar: $${total.toLocaleString()} pesos`);
+                
+                selectedNumbers = [];
+                nameInput.value = '';
+                contactInput.value = '';
+                updateSelectedList();
+            }
+            
+            // Compartir por WhatsApp
+            function shareOnWhatsApp() {
+                const text = "¡Participa en mi rifa! Compra tus números por solo $3.000 pesos cada uno. " + window.location.href;
+                const url = "https://wa.me/?text=" + encodeURIComponent(text);
+                window.open(url, '_blank');
+            }
+            
+            // Funciones de administrador
+            function toggleAdminControls() {
+                adminControls.style.display = adminControls.style.display === 'none' ? 'block' : 'none';
+                adminToggle.textContent = adminControls.style.display === 'none' ? 'Mostrar controles' : 'Ocultar controles';
+            }
+            
+            function loginAdmin() {
+                if (adminPass.value === adminPassword) {
+                    adminActions.style.display = 'block';
+                    adminPass.value = '';
+                    alert('Acceso concedido');
+                } else {
+                    alert('Contraseña incorrecta');
+                }
+            }
+            
+            function unblockNumber() {
+                const num = parseInt(unblockInput.value);
+                if (isNaN(num) || num < 1 || num > totalNumbers) {
+                    alert('Por favor ingresa un número válido (1-200)');
+                    return;
+                }
+                
+                blockedNumbers = blockedNumbers.filter(n => n !== num);
+                localStorage.setItem('blockedNumbers', JSON.stringify(blockedNumbers));
+                
+                // Actualizar visualización
+                const element = document.querySelector(`.number[data-number="${num}"]`);
+                if (element) {
+                    element.classList.remove('blocked');
+                }
+                
+                // Eliminar información del comprador
+                const buyers = JSON.parse(localStorage.getItem('buyers')) || {};
+                delete buyers[num];
+                localStorage.setItem('buyers', JSON.stringify(buyers));
+                
+                alert(`Número ${num} desbloqueado`);
+                unblockInput.value = '';
+            }
+            
+            function resetRaffle() {
+                if (confirm('¿Estás seguro de que quieres reiniciar toda la rifa? Esto borrará todos los números bloqueados y los datos de los compradores.')) {
+                    blockedNumbers = [];
+                    localStorage.setItem('blockedNumbers', JSON.stringify(blockedNumbers));
+                    localStorage.removeItem('buyers');
+                    selectedNumbers = [];
+                    createNumbers();
+                    updateSelectedList();
+                    exportData.value = '';
+                    alert('Rifa reiniciada');
+                }
+            }
+            
+            // Exportar datos a formato CSV (Excel)
+            function exportToCSV() {
+                const buyers = JSON.parse(localStorage.getItem('buyers')) || {};
+                if (Object.keys(buyers).length === 0) {
+                    exportData.value = 'No hay datos de compradores aún';
+                    return;
+                }
+                
+                // Crear encabezados CSV
+                let csv = 'Número,Nombre,Contacto,Fecha,Valor\n';
+                
+                // Ordenar números y agregar datos
+                const sortedNumbers = Object.keys(buyers).sort((a, b) => a - b);
+                sortedNumbers.forEach(num => {
+                    const buyer = buyers[num];
+                    csv += `"${num}","${buyer.name}","${buyer.contact}","${buyer.date}","${buyer.price}"\n`;
+                });
+                
+                // Calcular totales
+                const totalNumbersSold = sortedNumbers.length;
+                const totalRevenue = totalNumbersSold * pricePerNumber;
+                csv += `\nTotal números vendidos,${totalNumbersSold}\n`;
+                csv += `Total recaudado,${totalRevenue}\n`;
+                
+                exportData.value = csv;
+            }
+            
+            // Copiar datos al portapapeles
+            function copyToClipboard() {
+                exportData.select();
+                document.execCommand('copy');
+                alert('Datos copiados al portapapeles. Puedes pegarlos directamente en Excel.');
+            }
+            
+            // Event listeners
+            selectBtn.addEventListener('click', blockSelectedNumbers);
+            shareBtn.addEventListener('click', shareOnWhatsApp);
+            adminToggle.addEventListener('click', toggleAdminControls);
+            adminLogin.addEventListener('click', loginAdmin);
+            unblockBtn.addEventListener('click', unblockNumber);
+            resetBtn.addEventListener('click', resetRaffle);
+            exportBtn.addEventListener('click', exportToCSV);
+            copyBtn.addEventListener('click', copyToClipboard);
+            
+            // Inicializar
+            createNumbers();
+            updateSelectedList();
+        });
+    </script>
+</body>
+</html>
